@@ -2,9 +2,6 @@ package scheduling;
 
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.function.Predicate;
@@ -20,7 +17,7 @@ public class DefaultScheduledService implements ScheduledService {
     /**
      * 任务列表
      */
-    private final DelayQueue<DelayedTask> tasks = new DelayQueue<>();
+    private final RefreshDelayQueue<DelayedTask> tasks;
     /**
      * 运行中
      */
@@ -30,13 +27,9 @@ public class DefaultScheduledService implements ScheduledService {
      */
     private long lastCheckTime;
     /**
-     * 添加任务锁，用于防止添加任务和刷新任务的时候因为并发而丢失任务
-     */
-    private final Object addTaskLock = new Object();
-    /**
      * 等待添加的异步周期任务，用于辅助删除异步周期任务
      */
-    private final Set<DelayedTask> waitAddAsyncTasks = new HashSet<>();
+    private final Set<DelayedTask> waitAddAsyncTasks = ConcurrentHashMap.newKeySet();
     /**
      * 任务执行器
      */
@@ -49,6 +42,11 @@ public class DefaultScheduledService implements ScheduledService {
     public DefaultScheduledService(Executor asyncExecutor) {
         this.executor = Executors.newSingleThreadExecutor(new CustomizableThreadFactory("调度线程"));
         this.asyncExecutor = asyncExecutor;
+        try {
+            tasks = RefreshDelayQueue.newQueue();
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException("创建可刷新的延迟队列失败", e);
+        }
     }
 
     @Override
@@ -80,10 +78,7 @@ public class DefaultScheduledService implements ScheduledService {
 
     @Override
     public ScheduledFuture addTask(DelayedTask task) {
-        synchronized (addTaskLock) {
-            tasks.add(task);
-        }
-
+        tasks.add(task);
         return task;
     }
 
@@ -217,10 +212,6 @@ public class DefaultScheduledService implements ScheduledService {
             return;
         }
         lastCheckTime = now;
-        synchronized (addTaskLock) {
-            List<DelayedTask> tempTasks = new ArrayList<>(tasks);
-            tasks.clear();
-            tasks.addAll(tempTasks);
-        }
+        tasks.refresh();
     }
 }
