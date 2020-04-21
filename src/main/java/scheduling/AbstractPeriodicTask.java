@@ -17,8 +17,11 @@ public abstract class AbstractPeriodicTask extends AbstractDelayedTask implement
 
     @Override
     public void run() {
-        super.run();
-        refreshExecuteTime();
+        try {
+            super.run();
+        } finally {
+            refreshExecuteTime();
+        }
     }
 
     /**
