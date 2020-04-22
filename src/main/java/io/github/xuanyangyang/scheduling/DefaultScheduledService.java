@@ -1,5 +1,8 @@
-package scheduling;
+package io.github.xuanyangyang.scheduling;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 
 import java.util.Set;
@@ -13,7 +16,8 @@ import java.util.function.Supplier;
  * @author xuanyangyang
  * @since 2020/3/26 18:07
  */
-public class DefaultScheduledService implements ScheduledService {
+public class DefaultScheduledService implements ScheduledService, DisposableBean {
+    private final Logger logger = LoggerFactory.getLogger(getClass());
     /**
      * 任务列表
      */
@@ -42,11 +46,7 @@ public class DefaultScheduledService implements ScheduledService {
     public DefaultScheduledService(Executor asyncExecutor) {
         this.executor = Executors.newSingleThreadExecutor(new CustomizableThreadFactory("调度线程"));
         this.asyncExecutor = asyncExecutor;
-        try {
-            tasks = RefreshDelayQueue.newQueue();
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new RuntimeException("创建可刷新的延迟队列失败", e);
-        }
+        tasks = RefreshDelayQueue.newQueue();
     }
 
     @Override
@@ -110,7 +110,7 @@ public class DefaultScheduledService implements ScheduledService {
                 res = removeTaskSupplier.get();
             } catch (Exception e) {
                 res = false;
-                e.printStackTrace();
+                logger.error("删除定时任务失败", e);
             }
             future.complete(res);
         });
@@ -127,6 +127,16 @@ public class DefaultScheduledService implements ScheduledService {
      */
     public ScheduledFuture execute(String taskName, Runnable action, boolean async) {
         return addTask(taskName, 0, TimeUnit.MILLISECONDS, action, async);
+    }
+
+    @Override
+    public void stop() {
+        running = false;
+    }
+
+    @Override
+    public void start() {
+        init();
     }
 
     /**
@@ -151,7 +161,7 @@ public class DefaultScheduledService implements ScheduledService {
                     runTask(task);
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                logger.error("运行定时任务错误", e);
             }
         }
     }
@@ -198,7 +208,7 @@ public class DefaultScheduledService implements ScheduledService {
         try {
             task.run();
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("运行定时任务错误", e);
         }
     }
 
@@ -213,5 +223,10 @@ public class DefaultScheduledService implements ScheduledService {
         }
         lastCheckTime = now;
         tasks.refresh();
+    }
+
+    @Override
+    public void destroy() throws Exception {
+        stop();
     }
 }

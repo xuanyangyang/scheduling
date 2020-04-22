@@ -1,4 +1,4 @@
-package scheduling;
+package io.github.xuanyangyang.scheduling;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -130,4 +130,14 @@ public interface ScheduledService {
      * @return 任务future
      */
     ScheduledFuture execute(String taskName, Runnable action, boolean async);
+
+    /**
+     * 停止
+     */
+    void stop();
+
+    /**
+     * 开始
+     */
+    void start();
 }

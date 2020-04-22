@@ -1,4 +1,4 @@
-package scheduling;
+package io.github.xuanyangyang.scheduling;
 
 /**
  * 抽象周期任务

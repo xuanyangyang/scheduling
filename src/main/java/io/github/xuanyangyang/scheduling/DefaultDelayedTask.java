@@ -1,4 +1,4 @@
-package scheduling;
+package io.github.xuanyangyang.scheduling;
 
 import java.util.concurrent.TimeUnit;
 

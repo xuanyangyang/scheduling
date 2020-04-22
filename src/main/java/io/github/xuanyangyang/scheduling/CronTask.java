@@ -1,4 +1,4 @@
-package scheduling;
+package io.github.xuanyangyang.scheduling;
 
 import org.springframework.scheduling.support.CronSequenceGenerator;
 
