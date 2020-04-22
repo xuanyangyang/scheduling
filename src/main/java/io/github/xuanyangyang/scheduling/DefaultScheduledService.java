@@ -42,11 +42,39 @@ public class DefaultScheduledService implements ScheduledService, DisposableBean
      * 异步任务执行器
      */
     private final Executor asyncExecutor;
+    /**
+     * 是否启用自动刷新机制
+     */
+    private final boolean enableAutoRefresh;
+    /**
+     * 自动刷新初始延迟（毫秒）
+     */
+    private final long autoRefreshDelay;
+    /**
+     * 自动刷新周期（毫秒）
+     */
+    private long autoRefreshPeriod;
+    /**
+     * 自动刷新阈值（毫秒）
+     */
+    private long autoRefreshThreshold;
+
+    public DefaultScheduledService() {
+        this(Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new CustomizableThreadFactory("异步调度线程-")));
+    }
 
     public DefaultScheduledService(Executor asyncExecutor) {
-        this.executor = Executors.newSingleThreadExecutor(new CustomizableThreadFactory("调度线程"));
+        this("调度线程-", asyncExecutor, true, 0, 3000, 10000);
+    }
+
+    public DefaultScheduledService(String threadNamePrefix, Executor asyncExecutor, boolean enableAutoRefresh, long autoRefreshDelay, long autoRefreshPeriod, long autoRefreshThreshold) {
+        this.executor = Executors.newSingleThreadExecutor(new CustomizableThreadFactory(threadNamePrefix));
         this.asyncExecutor = asyncExecutor;
         tasks = RefreshDelayQueue.newQueue();
+        this.enableAutoRefresh = enableAutoRefresh;
+        this.autoRefreshDelay = autoRefreshDelay;
+        this.autoRefreshPeriod = autoRefreshPeriod;
+        this.autoRefreshThreshold = autoRefreshThreshold;
     }
 
     @Override
@@ -145,7 +173,9 @@ public class DefaultScheduledService implements ScheduledService, DisposableBean
     public void init() {
         executor.execute(this::runTasks);
         lastCheckTime = System.currentTimeMillis();
-        addTask("刷新定时任务", 3, 3, TimeUnit.SECONDS, this::tryRefreshTask);
+        if (enableAutoRefresh) {
+            addTask("刷新定时任务", autoRefreshDelay, autoRefreshPeriod, TimeUnit.MILLISECONDS, this::tryRefreshTask);
+        }
     }
 
     /**
@@ -217,7 +247,7 @@ public class DefaultScheduledService implements ScheduledService, DisposableBean
      */
     private void tryRefreshTask() {
         long now = System.currentTimeMillis();
-        if (lastCheckTime + 10000 >= now) {
+        if (lastCheckTime + autoRefreshThreshold >= now) {
             lastCheckTime = now;
             return;
         }
@@ -226,7 +256,43 @@ public class DefaultScheduledService implements ScheduledService, DisposableBean
     }
 
     @Override
-    public void destroy() throws Exception {
+    public void destroy() {
         stop();
+    }
+
+    public boolean isEnableAutoRefresh() {
+        return enableAutoRefresh;
+    }
+
+    public long getAutoRefreshDelay() {
+        return autoRefreshDelay;
+    }
+
+    public long getAutoRefreshPeriod() {
+        return autoRefreshPeriod;
+    }
+
+    public long getAutoRefreshThreshold() {
+        return autoRefreshThreshold;
+    }
+
+    public void setAutoRefreshPeriod(long autoRefreshPeriod) {
+        this.autoRefreshPeriod = autoRefreshPeriod;
+    }
+
+    public void setAutoRefreshThreshold(long autoRefreshThreshold) {
+        this.autoRefreshThreshold = autoRefreshThreshold;
+    }
+
+    public Executor getExecutor() {
+        return executor;
+    }
+
+    public Executor getAsyncExecutor() {
+        return asyncExecutor;
+    }
+
+    public boolean isRunning() {
+        return running;
     }
 }
