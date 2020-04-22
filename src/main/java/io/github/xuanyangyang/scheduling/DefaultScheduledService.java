@@ -7,6 +7,7 @@ import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -58,19 +59,25 @@ public class DefaultScheduledService implements ScheduledService, DisposableBean
      * 自动刷新阈值（毫秒）
      */
     private long autoRefreshThreshold;
+    /**
+     * 初始化
+     */
+    private final AtomicBoolean init = new AtomicBoolean();
 
     public DefaultScheduledService() {
         this(Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new CustomizableThreadFactory("异步调度线程-")));
     }
 
     public DefaultScheduledService(Executor asyncExecutor) {
-        this("调度线程-", asyncExecutor, true, 0, 3000, 10000);
+        this("调度线程-", asyncExecutor, true,
+                0, 3000, 10000);
     }
 
-    public DefaultScheduledService(String threadNamePrefix, Executor asyncExecutor, boolean enableAutoRefresh, long autoRefreshDelay, long autoRefreshPeriod, long autoRefreshThreshold) {
+    public DefaultScheduledService(String threadNamePrefix, Executor asyncExecutor, boolean enableAutoRefresh,
+                                   long autoRefreshDelay, long autoRefreshPeriod, long autoRefreshThreshold) {
         this.executor = Executors.newSingleThreadExecutor(new CustomizableThreadFactory(threadNamePrefix));
         this.asyncExecutor = asyncExecutor;
-        tasks = RefreshDelayQueue.newQueue();
+        this.tasks = RefreshDelayQueue.newQueue();
         this.enableAutoRefresh = enableAutoRefresh;
         this.autoRefreshDelay = autoRefreshDelay;
         this.autoRefreshPeriod = autoRefreshPeriod;
@@ -171,10 +178,12 @@ public class DefaultScheduledService implements ScheduledService, DisposableBean
      * 初始化
      */
     public void init() {
-        executor.execute(this::runTasks);
-        lastCheckTime = System.currentTimeMillis();
-        if (enableAutoRefresh) {
-            addTask("刷新定时任务", autoRefreshDelay, autoRefreshPeriod, TimeUnit.MILLISECONDS, this::tryRefreshTask);
+        if (init.compareAndSet(false, true)) {
+            executor.execute(this::runTasks);
+            lastCheckTime = System.currentTimeMillis();
+            if (enableAutoRefresh) {
+                addTask("刷新定时任务", autoRefreshDelay, autoRefreshPeriod, TimeUnit.MILLISECONDS, this::tryRefreshTask);
+            }
         }
     }
 
@@ -294,5 +303,9 @@ public class DefaultScheduledService implements ScheduledService, DisposableBean
 
     public boolean isRunning() {
         return running;
+    }
+
+    public boolean isInit() {
+        return init.get();
     }
 }
